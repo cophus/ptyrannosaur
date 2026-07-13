@@ -47,3 +47,24 @@ def eval_exp_batch(model, model_state, inputs):
     """Evaluate model on a batch of data."""
     outputs = model.apply(model_state, inputs, training=False)
     return outputs
+
+@partial(jit, static_argnames=['model'])
+def eval_exp_batch_gather(model, model_state, dps, neighbors_batch):
+    """Gather a batch's neighbor stack on-device, then evaluate the model.
+
+    Identical in output to gathering with NumPy and calling `eval_exp_batch`,
+    but the neighbor gather + channel move happen inside the jitted region on
+    the accelerator. This keeps the (large, ~25x-redundant) input stack on the
+    device instead of rebuilding and re-transferring it from the host for every
+    batch, which is the dominant data-movement cost on a GPU.
+
+    Parameters
+    ----------
+    dps : array
+        (num_patterns, n_k, n_k) stack of normalized diffraction patterns,
+        already resident on the device.
+    neighbors_batch : array
+        (batch, num_neighbors) integer indices into `dps` for this batch.
+    """
+    inputs = jnp.moveaxis(dps[neighbors_batch], 1, -1)
+    return model.apply(model_state, inputs, training=False)
