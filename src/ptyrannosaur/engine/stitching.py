@@ -654,14 +654,16 @@ def reconcile_shift_vectors(region_defn: np.ndarray,
     xn_indices = list(itertools.chain(zip(xn.r, xn.c), zip(bad_xn.r, bad_xn.c)))
     yn_indices = list(itertools.chain(zip(yn.r, yn.c), zip(bad_yn.r, bad_yn.c)))
 
-    idx1_xn = np.array([idx_2D_to_1D[r  , c]   for r, c in xn_indices])
-    idx2_xn = np.array([idx_2D_to_1D[r  , c+1] for r, c in xn_indices])
-    idx1_yn = np.array([idx_2D_to_1D[r  , c]   for r, c in yn_indices])
-    idx2_yn = np.array([idx_2D_to_1D[r+1, c]   for r, c in yn_indices])
-    idx1_dn = np.array([idx_2D_to_1D[r  , c]   for r, c in zip(dn.r, dn.c)])
-    idx2_dn = np.array([idx_2D_to_1D[r+1, c+1] for r, c in zip(dn.r, dn.c)])
-    idx1_an = np.array([idx_2D_to_1D[r  , c+1] for r, c in zip(an.r, an.c)])
-    idx2_an = np.array([idx_2D_to_1D[r+1, c]   for r, c in zip(an.r, an.c)])
+    # dtype=intp so empty directions stay integer-typed (np.array([]) is float64,
+    # which would break the integer indexing / concatenation below).
+    idx1_xn = np.array([idx_2D_to_1D[r  , c]   for r, c in xn_indices], dtype=np.intp)
+    idx2_xn = np.array([idx_2D_to_1D[r  , c+1] for r, c in xn_indices], dtype=np.intp)
+    idx1_yn = np.array([idx_2D_to_1D[r  , c]   for r, c in yn_indices], dtype=np.intp)
+    idx2_yn = np.array([idx_2D_to_1D[r+1, c]   for r, c in yn_indices], dtype=np.intp)
+    idx1_dn = np.array([idx_2D_to_1D[r  , c]   for r, c in zip(dn.r, dn.c)], dtype=np.intp)
+    idx2_dn = np.array([idx_2D_to_1D[r+1, c+1] for r, c in zip(dn.r, dn.c)], dtype=np.intp)
+    idx1_an = np.array([idx_2D_to_1D[r  , c+1] for r, c in zip(an.r, an.c)], dtype=np.intp)
+    idx2_an = np.array([idx_2D_to_1D[r+1, c]   for r, c in zip(an.r, an.c)], dtype=np.intp)
 
     n_xn_good = len(xn.r)
     n_xn_bad = len(bad_xn.r)
