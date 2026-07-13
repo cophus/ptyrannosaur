@@ -147,7 +147,7 @@ def masked_correlation_patch_stitching(data: np.ndarray,
     windowed_data = data * window[np.newaxis, np.newaxis, :, np.newaxis]
     windowed_data *= window[np.newaxis, np.newaxis, np.newaxis, :]
 
-    data_freq = fftn(windowed_data, axes=(2, 3))
+    data_freq = fftn(windowed_data, axes=(2, 3), workers=-1)
     im_shape = np.array(data_freq.shape[2:])
 
     prod_yn = data_freq[:-1, :, :, :] * data_freq[1:, :].conj()
@@ -162,10 +162,10 @@ def masked_correlation_patch_stitching(data: np.ndarray,
     prod_dn /= np.maximum(np.abs(prod_dn), 100*eps)
     prod_an /= np.maximum(np.abs(prod_an), 100*eps)
 
-    cross_corr_y = ifftn(prod_yn, axes=(2,3))
-    cross_corr_x = ifftn(prod_xn, axes=(2,3))
-    cross_corr_d = ifftn(prod_dn, axes=(2,3))
-    cross_corr_a = ifftn(prod_an, axes=(2,3))
+    cross_corr_y = ifftn(prod_yn, axes=(2,3), workers=-1)
+    cross_corr_x = ifftn(prod_xn, axes=(2,3), workers=-1)
+    cross_corr_d = ifftn(prod_dn, axes=(2,3), workers=-1)
+    cross_corr_a = ifftn(prod_an, axes=(2,3), workers=-1)
 
     float_dtype = prod_yn.real.dtype
 
