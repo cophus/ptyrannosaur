@@ -102,8 +102,11 @@ def main(model_path, eval_path):
         # Position correct the patches
         if eval_params['learn_stitching']:
             print('\n\nBeginning to perform position correction')
+            # PTYRAN_STITCH_BACKEND = numpy (default, CPU) | jax (GPU).
+            stitch_backend = os.environ.get('PTYRAN_STITCH_BACKEND', 'numpy').lower()
             start_stitching_time = time.perf_counter()
-            stitched_image, support, patch_pos = stitching.learn_stitch(output_objs, scan_pts)
+            stitched_image, support, patch_pos = stitching.learn_stitch(
+                output_objs, scan_pts, backend=stitch_backend)
             eng_stitching_time = time.perf_counter()
             print(f'Position corrected stitching complete in {eng_stitching_time - start_stitching_time:0.3f} secs',flush=True)
             tifffile.imwrite(os.path.join(save_dir,'stitched_output.tiff'), stitched_image.astype(np.float32))
