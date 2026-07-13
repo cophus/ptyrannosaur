@@ -1,7 +1,21 @@
 """Architecture for autoencoder."""
 
+from typing import Any
+
+import jax.numpy as jnp
 import flax.linen as nn
 from jax.image import resize
+
+# Mixed-precision note
+# -----------------------------------------------------------------------------
+# Every block takes a ``compute_dtype`` (default float32 -> unchanged, bitwise
+# identical to the original network).  Setting it to jnp.bfloat16 / jnp.float16
+# runs the (expensive) convolutions in low precision so they use the GPU tensor
+# cores, while the batch-norm statistics are always kept in float32 for
+# numerical stability (fp16 in particular overflows if the running variance is
+# stored/normalized in half precision).  Parameters stay float32 and are cast
+# down inside each conv, so the same pickled weights load unchanged.
+
 
 # Define the Neural Network
 # ===============================================================================
@@ -15,17 +29,20 @@ class ConvDownBlock(nn.Module):
     leaky_val: float
     mom: float
     stride : int
+    compute_dtype: Any = jnp.float32
 
     def setup(self):
         """Set up the layer."""
         self.Conv1 = nn.Conv(features=self.num_features,
                              kernel_size=(self.kernel_size,self.kernel_size),
-                             strides=(self.stride,self.stride), padding='same')
-        self.BN1 = nn.BatchNorm(momentum=self.mom)
+                             strides=(self.stride,self.stride), padding='same',
+                             dtype=self.compute_dtype)
+        self.BN1 = nn.BatchNorm(momentum=self.mom, dtype=jnp.float32)
         self.Conv2 = nn.Conv(features=self.num_features,
                              kernel_size=(self.kernel_size,self.kernel_size),
-                             strides=(self.stride,self.stride), padding='same')
-        self.BN2 = nn.BatchNorm(momentum=self.mom)
+                             strides=(self.stride,self.stride), padding='same',
+                             dtype=self.compute_dtype)
+        self.BN2 = nn.BatchNorm(momentum=self.mom, dtype=jnp.float32)
 
 
     def __call__(self, x, train: bool):
@@ -48,17 +65,20 @@ class ConvBlock(nn.Module):
     kernel_size: int
     leaky_val: float
     stride: int
+    compute_dtype: Any = jnp.float32
 
     def setup(self):
         """Set up the layer."""
         self.Conv1 = nn.Conv(features=self.num_features,
                              kernel_size=(self.kernel_size,self.kernel_size),
-                             strides=(self.stride,self.stride), padding='same')
-        self.BN1 = nn.BatchNorm(momentum=self.mom)
+                             strides=(self.stride,self.stride), padding='same',
+                             dtype=self.compute_dtype)
+        self.BN1 = nn.BatchNorm(momentum=self.mom, dtype=jnp.float32)
         self.Conv2 = nn.Conv(features=self.num_features,
                              kernel_size=(self.kernel_size,self.kernel_size),
-                             strides=(self.stride,self.stride), padding='same')
-        self.BN2 = nn.BatchNorm(momentum=self.mom)
+                             strides=(self.stride,self.stride), padding='same',
+                             dtype=self.compute_dtype)
+        self.BN2 = nn.BatchNorm(momentum=self.mom, dtype=jnp.float32)
 
 
     def __call__(self, x, train: bool):
@@ -80,17 +100,20 @@ class ConvUpBlock(nn.Module):
     upsample_size: int
     leaky_val: float
     stride: int
+    compute_dtype: Any = jnp.float32
 
     def setup(self):
         """Set up the layer."""
         self.Conv1 = nn.Conv(features=self.num_features,
                              kernel_size = (self.kernel_size,self.kernel_size),
-                             strides=(self.stride,self.stride), padding='same')
-        self.BN1 = nn.BatchNorm(momentum=self.mom)
+                             strides=(self.stride,self.stride), padding='same',
+                             dtype=self.compute_dtype)
+        self.BN1 = nn.BatchNorm(momentum=self.mom, dtype=jnp.float32)
         self.Conv2 = nn.Conv(features=self.num_features,
                              kernel_size=(self.kernel_size,self.kernel_size),
-                             strides=(self.stride,self.stride), padding='same')
-        self.BN2 = nn.BatchNorm(momentum=self.mom)
+                             strides=(self.stride,self.stride), padding='same',
+                             dtype=self.compute_dtype)
+        self.BN2 = nn.BatchNorm(momentum=self.mom, dtype=jnp.float32)
 
     def __call__(self, x, train: bool):
         """Call the layer."""
@@ -119,26 +142,32 @@ class Autoencoder(nn.Module):
     stride: int
     out_layers: int
     out_size: int
+    compute_dtype: Any = jnp.float32
 
     def setup(self):
         """Set up the architecture."""
         self.conv_downs=[ConvDownBlock(2**(i)*self.num_base_filters,
                                       self.mom, self.kernel_size, self.pooling_size,
-                                      self.leaky_val, self.stride) 
+                                      self.leaky_val, self.stride,
+                                      compute_dtype=self.compute_dtype)
                                       for i in range(self.num_down_blocks)]
         self.conv_block=ConvBlock(2**(self.num_down_blocks)*self.num_base_filters,
                                   self.mom, self.kernel_size,
-                                  self.leaky_val, self.stride)
+                                  self.leaky_val, self.stride,
+                                  compute_dtype=self.compute_dtype)
         self.conv_ups=[ConvUpBlock(2**(self.num_down_blocks-(i+1))*self.num_base_filters,
                                   self.mom, self.kernel_size, self.upsample_size,
-                                  self.leaky_val, self.stride) 
+                                  self.leaky_val, self.stride,
+                                  compute_dtype=self.compute_dtype)
                                   for i in range(self.num_up_blocks)]
         self.conv1=nn.Conv(features=self.out_layers,
                            kernel_size = (self.kernel_size,self.kernel_size),
-                             strides=(self.stride,self.stride), padding='same')
+                             strides=(self.stride,self.stride), padding='same',
+                             dtype=self.compute_dtype)
         self.conv2=nn.Conv(features=self.out_layers,
                            kernel_size = (self.kernel_size,self.kernel_size),
-                             strides=(self.stride,self.stride), padding='same')
+                             strides=(self.stride,self.stride), padding='same',
+                             dtype=self.compute_dtype)
 
     def __call__(self, x, training: bool):
         """Call the architecture."""
@@ -151,6 +180,8 @@ class Autoencoder(nn.Module):
         x = nn.leaky_relu(x, self.leaky_val)
         x = self.conv2(x)
         x = nn.relu(x)
+        # Cast back to float32 so downstream (stitching, saving) is unchanged.
+        x = x.astype(jnp.float32)
         _, x_dist, y_dist, _ = x.shape
         #### Manually input size
         s = self.out_size//2

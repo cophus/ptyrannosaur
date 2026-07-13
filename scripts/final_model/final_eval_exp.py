@@ -47,12 +47,21 @@ def main(model_path, eval_path):
             shutil.copy(source_path, destination_path)
             print(f"Copied: {filename}",flush=True)
     
-    # Define the model
+    # Define the model. Optional low-precision compute (env var PTYRAN_PRECISION =
+    # float32 | bfloat16 | float16) runs the convolutions on the GPU tensor cores;
+    # batch-norm stays in float32. Default float32 is bitwise unchanged.
+    import jax.numpy as jnp
+    _prec = os.environ.get('PTYRAN_PRECISION', 'float32').lower()
+    _compute_dtype = {'float32': jnp.float32, 'fp32': jnp.float32,
+                      'bfloat16': jnp.bfloat16, 'bf16': jnp.bfloat16,
+                      'float16': jnp.float16, 'fp16': jnp.float16}.get(_prec, jnp.float32)
+    print(f'Compute precision: {_compute_dtype.__name__}', flush=True)
     model = Autoencoder(t_params['num_down_blocks'],t_params['num_up_blocks'],
                         t_params['num_base_filters'],t_params['kernel_size'],
                         t_params['pooling_size'],t_params['upsample_size'],
                         t_params['mom'],t_params['leaky_val'],t_params['stride'],
-                        t_params['out_layers'],t_params['out_size'])
+                        t_params['out_layers'],t_params['out_size'],
+                        compute_dtype=_compute_dtype)
 
     # Iterate through all folders
     subdirs = sorted([item for item in os.listdir(eval_settings['data_path']) if os.path.isdir(os.path.join(eval_settings['data_path'], item))])
